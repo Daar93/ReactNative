@@ -1,67 +1,109 @@
 // 1) import-Anweisungen
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { StatusBar } from 'expo-status-bar';
-import { Button, StyleSheet, View } from 'react-native';
+import { Alert, StyleSheet, View, Text } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import BigButton from "./components/BigButton";
+import IconButton from "./components/IconButton";
 import Quote from "./components/Quotes";
-
-const data = [
-  {
-    text: "„Fordere viel von dir selbst und erwarte wenig von den anderen. So wird dir Ärger erspart bleiben.\“", 
-    author: "Konfuzius"
-  },
-  {text: "Wer einmal sich selbst gefunden, kann nichts auf dieser Welt mehr verlieren.", 
-  author:"Stefan Zweig"},
-  {text: "Wenn die Menschen nur über das sprächen, was sie begreifen, dann würde es sehr still auf der Welt sein.", 
-  author:"Albert Einstein"}
-];
+import NewQuote from "./components/NewQuote";
 
 // 2) unsere UI-Komponente deklarieren
 export default function App() {
-  // useState-Hook erweitert Komponente/Funktion mit Zustand
-  // Vorgehen:
-  // - useState-Hook importieren
-  // - useState mit initialem Zustandswert aufrufen
-  // - Rueckgabe destrukturieren: state-Objekt, Aenderungsfunkt.
-  // - State-Aenderung mit der Aenderungsfunktion durchfuehren
-  // --> bei state-Aenderung wird UI automatisch 
-  // --> deklarative, reaktive Programmierung in React (Native)
   const [index, setIndex] = useState(0);
+  const [quotes, setQuotes] = useState([]);
+  const [showNewDialog, setShowNewDialog] = useState(false);
 
-  // Destrukturierung:
-  // const list = [8, 4, 4, 7, 1];
-  // const [first, second, third] = list;
-  // entspricht:
-  // const first = list[0];
-  // const second = list[1];
-  // const third = list[2];
+  // Zitate beim Start der App laden
+  useEffect(() => {
+    loadQuotes(); 
+  }, []);  // --> einmalige Ausfuehrung
 
-  // const person = {name: "Kim", age: 32};
-  // const {age, name} = person;
-  // entpricht:
-  // const name = person.name;
-  // const name = person.age;
+  function addQuoteToList (content, name) {
+    setShowNewDialog(false);
+    const newQuotes = [
+      ...quotes, 
+      { text: content, author: name }
+    ];
+    setQuotes(newQuotes);
+    setIndex(newQuotes.length - 1);
+    saveQuotes(newQuotes);
+  }
+  
+  function removeQuoteFromList() {
+    const newQuotes = [...quotes];
+    newQuotes.splice(index, 1);
+    setQuotes(newQuotes);
+    setIndex(0);
+    saveQuotes(newQuotes);
+  }
 
-  const quote = data[index];
+  function deleteQuote() {
+    Alert.alert(
+      "Zitat loeschen",
+      "Soll das Zitat wirklich geloescht werden?",
+      [{text: 'Abbrechen', style:"cancel"}, 
+        {
+          text: 'Bestaetigen', 
+          style: 'destructive', 
+          onPress: removeQuoteFromList
+        }
+      ]
+    )
+  }
+
+  function saveQuotes(newQuotes) {
+    AsyncStorage.setItem("QUOTES", JSON.stringify(newQuotes))
+  }
+
+  async function loadQuotes() {
+    let quotesFromDB = await AsyncStorage.getItem("QUOTES");
+    if(quotesFromDB !== null) {
+      console.log("Anzahl der Zitate: " + quotesFromDB.length);
+      quotesFromDB = JSON.parse(quotesFromDB);
+      console.log("nach JSON.parse " + quotesFromDB.length);
+      setQuotes(quotesFromDB);
+    }
+  }
 
   let prevIndex = index - 1;
   if(prevIndex < 0) {
-    prevIndex = data.length - 1;
+    prevIndex = quotes.length - 1;
   }
+
+  let content = <Text style={styles.noQuotes}>Keine Zitate</Text>;
+  if(quotes.length > 0) {
+    const quote = quotes[index];
+    content = <Quote text={quote.text} author={quote.author}/>;
+  } 
 
   return (
     <View style={styles.container}>
-      <Quote text={quote.text} author={quote.author}/>
-      <Button title="Naechstes Zitat" 
-        onPress={() => {
-          setIndex((index + 1) % data.length);
-          }
-        }
+      <IconButton 
+        onPress={() => setShowNewDialog(true)}
+        icon="add-circle" 
+        style={styles.new}
       />
-      <Button title="Vorheriges Zitat" 
-        onPress={() => {
-          setIndex(prevIndex);
-          }
-        }
+      <IconButton 
+        onPress={deleteQuote}
+        icon="delete" 
+        style={styles.delete}
+      />
+      <NewQuote 
+        visible={showNewDialog}
+        onCancel={() => setShowNewDialog(false)} 
+        onSave={addQuoteToList}
+      />
+      {content}
+      <BigButton 
+        style={styles.next}
+        title="Naechstes Zitat" 
+        onPress={() => setIndex((index + 1) % quotes.length)}
+      />
+      <BigButton 
+        style={styles.previous}
+        title="Vorheriges Zitat" 
+        onPress={() => setIndex(prevIndex)}
       />
       <StatusBar style="auto" />
     </View>
@@ -71,8 +113,30 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#E9E0C8',
     alignItems: 'center',
     justifyContent: 'center',
   },
+  next: {
+    position: 'absolute', 
+    bottom: 60,
+  },
+  previous: {
+    position: 'absolute', 
+    bottom: 15,
+  },
+  new: {
+    position: "absolute",
+    top: 60,
+    right: 30,
+  },
+  delete: {
+    position: "absolute",
+    top: 60,
+    left: 30,
+  },
+  noQuotes: {
+    fontSize: 36,
+    fontWeight: '300'
+  }
 });
